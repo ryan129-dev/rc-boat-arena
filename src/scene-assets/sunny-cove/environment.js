@@ -331,21 +331,25 @@ export async function createCoveEnvironment(scene, {
     const frontFill = new THREE.DirectionalLight('#ffe8c5', 0.9);
     frontFill.position.set(25, 20, 60); frontFill.target.position.set(-3, 0, -5);
     group.add(sun, sun.target, hemisphere, ambient, frontFill, frontFill.target);
-    if (renderer?.isWebGLRenderer) {
-      const generator = new THREE.PMREMGenerator(renderer), lightingScene = new THREE.Scene();
-      const lightingSky = new THREE.Mesh(sky.mesh.geometry, sky.material); lightingScene.add(lightingSky);
-      try {
-        for (const [name, preset] of Object.entries(MOODS)) {
-          skyPreset(sky, preset);
-          const target = generator.fromScene(lightingScene, 0.03, 0.1, 1000);
-          mapTargets.push(target); maps[name] = target.texture;
-        }
-      } finally { generator.dispose(); lightingScene.remove(lightingSky); }
-    } else {
-      for (const [name, preset] of Object.entries(MOODS)) {
-        maps[name] = fallbackEnvironmentMap(preset); looseTextures.push(maps[name]);
+    // Generate only the selected lighting at startup. Other moods are created
+    // on first use, with a separate material so the visible sky never flashes.
+    const ensureEnvironmentMap = name => {
+      if (maps[name]) return;
+      if (!renderer?.isWebGLRenderer) {
+        maps[name] = fallbackEnvironmentMap(MOODS[name]); looseTextures.push(maps[name]);
+        return;
       }
-    }
+      const generator = new THREE.PMREMGenerator(renderer), lightingScene = new THREE.Scene();
+      const material = sky.material.clone();
+      const lightingSky = new THREE.Mesh(sky.mesh.geometry, material); lightingScene.add(lightingSky);
+      try {
+        skyPreset({ material }, MOODS[name]);
+        material.uniforms.uTime.value = 0; // Match the original fixed-time lighting maps.
+        const target = generator.fromScene(lightingScene, 0.03, 0.1, 1000);
+        mapTargets.push(target); maps[name] = target.texture;
+      } finally { generator.dispose(); lightingScene.remove(lightingSky); material.dispose(); }
+    };
+    ensureEnvironmentMap(initialMood);
     previous = { fog: scene.fog, environment: scene.environment, intensity: scene.environmentIntensity,
       exposure: renderer?.toneMappingExposure, shadows: renderer?.shadowMap.enabled, shadowType: renderer?.shadowMap.type };
     scene.add(group); scene.fog = fog;
@@ -379,6 +383,7 @@ export async function createCoveEnvironment(scene, {
     const setMood = (name, { immediate = false } = {}) => {
       if (!Object.hasOwn(MOODS, name)) throw new Error(`Unknown cove mood: ${name}`);
       const preset = MOODS[name]; if (disposed) return preset;
+      ensureEnvironmentMap(name);
       mood = name; from = { ...current, direction: current.direction.clone() };
       to = { ...preset, direction: new THREE.Vector3().fromArray(preset.moonDirection).normalize() };
       for (const field of colors) { from[field] = current[field].clone(); to[field] = new THREE.Color(preset[field]); }

@@ -7,13 +7,15 @@ import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import { pixelRatio } from '../rendering/pixel-budget.js';
 import { createAmbience } from './audio.js';
 
-function multisampleCount(renderer, quality) {
+function multisampleCount(renderer) {
   const gl = renderer.getContext();
   // The context-wide maximum alone does not guarantee HDR/depth format support.
   const color = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) || [];
   const depth = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) || [];
-  const limit = Math.min(renderer.capabilities.maxSamples, quality === 'low' ? 2 : 4);
-  return Math.max(0, ...Array.from(color).filter(samples => samples > 1 && samples <= limit && depth.includes(samples)));
+  const supported = Array.from(color).filter(samples => samples > 1 && samples <= renderer.capabilities.maxSamples && depth.includes(samples));
+  // Keep coverage antialiasing for foliage even when the device reports 4x as
+  // its smallest HDR/depth sample count; otherwise use the less expensive 2x.
+  return supported.includes(2) ? 2 : supported.includes(4) ? 4 : 0;
 }
 
 /** Canvas host shared by all viewing assets; it owns rendering and audio resources. */
@@ -25,17 +27,27 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
   let renderer, asset, composer, bloom, output, antialias, renderPass, resizeObserver, intersection;
   let samples = 0;
   let frame = 0, last = 0, renderCount = 0, lastNotification = -1;
-  let disposed = false, visible = false, pageSuspended = false, contextLost = false;
+  let disposed = false, visible = false, pageSuspended = false, contextLost = false, failed = false;
   const state = { ready: false, paused: reducedMotion, active: false, mood, camera: cameraMode };
   const abort = () => { loading.abort(signal?.reason); dispose(); };
   signal?.addEventListener('abort', abort, { once: true });
   const active = () => !disposed && state.ready && visible && !document.hidden && !pageSuspended && !contextLost;
   const stop = () => { cancelAnimationFrame(frame); frame = 0; last = 0; };
   const notify = () => onFrame?.(snapshot());
+  function fail(error) {
+    if (disposed || failed) return;
+    failed = true; state.ready = false; state.active = false; state.paused = true;
+    stop(); void ambience.visibility(true).catch(() => {}); onError?.(error);
+  }
   function draw() {
-    if (!active()) return;
-    renderer.info.reset(); composer.render(); renderCount++;
-    canvas.dataset.renderCount = String(renderCount);
+    if (!active()) return false;
+    try {
+      renderer.info.reset(); composer.render(); renderCount++;
+      canvas.dataset.renderCount = String(renderCount);
+      // A paused or newly visible host may not enter tick(), so report its first draw.
+      if (renderCount === 1) notify();
+      return true;
+    } catch (error) { fail(error); return false; }
   }
   function tick(now) {
     frame = 0;
@@ -46,9 +58,9 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
       asset.update(dt); draw();
       if (now - lastNotification > 300) { lastNotification = now; notify(); }
     } catch (error) {
-      state.paused = true; stop(); void ambience.visibility(true).catch(() => {}); onError?.(error); return;
+      fail(error); return;
     }
-    frame = requestAnimationFrame(tick);
+    if (!state.paused) frame = requestAnimationFrame(tick);
   }
   function sync() {
     const wasActive = state.active;
@@ -59,12 +71,14 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
     if (!wasActive && state.active && state.paused) draw();
   }
   function resize() {
-    if (!asset || disposed) return;
-    const width = Math.max(1, canvas.clientWidth), height = Math.max(1, canvas.clientHeight);
-    renderer.setPixelRatio(pixelRatio(width, height, { maxPixels: quality === 'low' ? 1000000 : 1800000, maxDpr: 1.75 }));
-    renderer.setSize(width, height, false); asset.resize(width, height);
-    composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(width, height);
-    draw();
+    if (!asset || disposed || failed) return;
+    try {
+      const width = Math.max(1, canvas.clientWidth), height = Math.max(1, canvas.clientHeight);
+      renderer.setPixelRatio(pixelRatio(width, height, { maxPixels: quality === 'low' ? 1000000 : 1800000, maxDpr: 1.75 }));
+      renderer.setSize(width, height, false); asset.resize(width, height);
+      composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(width, height);
+      draw();
+    } catch (error) { fail(error); }
   }
   function pageHide(event) { if (event.persisted) { pageSuspended = true; sync(); } else dispose(); }
   function pageShow() { pageSuspended = false; sync(); resize(); }
@@ -99,7 +113,7 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
     renderer.info.autoReset = false;
     asset = await createScene({ renderer, assetBaseUrl, quality, signal: loading.signal, mood, cameraMode, reducedMotion });
     if (disposed) { asset.dispose(); throw new DOMException('Preview cancelled', 'AbortError'); }
-    samples = multisampleCount(renderer, quality);
+    samples = multisampleCount(renderer);
     // Composer owns this HDR target and its clone, including their renderbuffers.
     composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, {
       type: THREE.HalfFloatType, samples,
@@ -151,7 +165,7 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
     resize,
     capture() {
       if (disposed || !active()) return Promise.reject(new Error('场景尚未准备好'));
-      draw();
+      if (!draw()) return Promise.reject(new Error('照片未能保存'));
       return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('照片未能保存')), 'image/png'));
     },
     snapshot, dispose,

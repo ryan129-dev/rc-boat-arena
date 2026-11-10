@@ -28,6 +28,8 @@ pnpm check:bundle      # 单入口依赖边界、共享引擎与发布体积预�
 pnpm serve             # 本地预览构建产物
 ```
 
+启动状态回归入口是开发服务下的 `/tools/checks/cove/startup-browser.html`，检查首帧、失败和重试。
+
 真实浏览器的场景回归入口是开发服务下的 `/tools/checks/cove/browser.html`。它覆盖实际模型切换、失败保留旧船、取消、连续换船、巡游与资源释放；不替代实体手机画面验收。
 
 ## 观赏与配置

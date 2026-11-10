@@ -117,11 +117,20 @@ export function createViewingPage({ createViewer, moods, cameraModes, debugKey,
   }
   async function init() {
     const current = ++generation;
+    let startupComplete = false, startupFailed = false;
+    const finishStartup = snapshot => {
+      if (startupComplete || startupFailed || !viewer || !snapshot.renderCount) return;
+      startupComplete = true;
+      $('loading').hidden = true;
+      document.querySelectorAll('[data-ready]').forEach(button => { button.disabled = false; });
+    };
     boatRequest++;
     request?.abort(); viewer?.dispose(); viewer = undefined;
     // A disposed WebGL host gives up its context; a retry owns a fresh canvas.
     const oldCanvas = $('world');
-    oldCanvas.replaceWith(oldCanvas.cloneNode(false));
+    const freshCanvas = oldCanvas.cloneNode(false);
+    delete freshCanvas.dataset.renderCount;
+    oldCanvas.replaceWith(freshCanvas);
     request = new AbortController();
     $('loading').hidden = false; $('loader').hidden = false; $('retry').hidden = true;
     $('load-text').textContent = loadingText;
@@ -134,8 +143,10 @@ export function createViewingPage({ createViewer, moods, cameraModes, debugKey,
         cameraMode: preferences.cameraMode ?? 'auto',
         quality: innerWidth < 700 ? 'low' : 'balanced',
         signal: request.signal, reducedMotion,
-        onFrame: snapshot => { if (current === generation) sync(snapshot); },
-        onError: error => { if (current === generation) showError(error); },
+        onFrame: snapshot => {
+          if (current === generation) { sync(snapshot); finishStartup(snapshot); }
+        },
+        onError: error => { if (current === generation) { startupFailed = true; showError(error); } },
       });
       if (current !== generation) { instance.dispose(); return; }
       viewer = instance;
@@ -143,9 +154,8 @@ export function createViewingPage({ createViewer, moods, cameraModes, debugKey,
         dialogWasPaused = viewer.state.paused;
         viewer.setPaused(true);
       }
-      $('loading').hidden = true;
-      document.querySelectorAll('[data-ready]').forEach(button => { button.disabled = false; });
-      sync(viewer.snapshot());
+      const snapshot = viewer.snapshot();
+      sync(snapshot); finishStartup(snapshot);
     } catch (error) {
       if (current === generation && error.name !== 'AbortError') showError(error);
     }

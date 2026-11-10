@@ -273,7 +273,7 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
     },
     resize(width, height) {
       if (disposed || width <= 0 || height <= 0) return;
-      const scale = Math.min(quality === 'low' ? .55 : .8, (quality === 'low' ? 768 : 1280) / Math.max(width, height));
+      const scale = Math.min(quality === 'low' ? .4 : .6, (quality === 'low' ? 576 : 960) / Math.max(width, height));
       const w = Math.max(128, Math.round(width * scale)), h = Math.max(128, Math.round(height * scale));
       refraction.setSize(w, h); u.uResolution.value.set(w, h);
       mesh.getRenderTarget().setSize(Math.max(128, Math.round(w * .75)), Math.max(128, Math.round(h * .75)));

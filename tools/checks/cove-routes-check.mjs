@@ -114,9 +114,10 @@ test('root scripts, CSS and icon retain the project prefix and correct MIME type
   const response = await request(iconUrl); assertType(response, 'image/svg+xml'); assert.match(response.body.toString(), /^<svg\b/);
 });
 
-test('published source records cover every configured boat and retain compatible original model URLs', async () => {
+test('published sources contain only Riva and retain its compatible original model URL', async () => {
   const response = await request(`${prefix}/assets/cove/asset-manifest.json`); assertType(response, 'application/json');
   const assets = JSON.parse(response.body.toString()).assets;
+  assert.deepEqual(assets.map(asset => asset.id), ['riva-aquarama']);
   assert.equal(new Set(assets.map(asset => asset.path)).size, assets.length);
   assert.deepEqual(assets.filter(asset => asset.role === 'boat').map(asset => asset.id).sort(), BOATS.map(boat => boat.id).sort());
   for (const asset of assets) {
@@ -133,6 +134,8 @@ test('published source records cover every configured boat and retain compatible
 test('scene delivery mapping resolves only to published, checksummed Sunny Cove variants', async () => {
   const response = await request(`${prefix}/assets/runtime/asset-manifest.json`); assertType(response, 'application/json');
   const runtime = JSON.parse(response.body.toString());
+  assert.deepEqual(runtime.assets.map(asset => asset.id), ['riva-aquarama']);
+  assert.deepEqual(runtime.core.cove, ['riva-aquarama']);
   const activeIds = new Set(coveManifest.assets.map(asset => asset.id));
   for (const asset of runtime.assets) {
     assert.ok(activeIds.has(asset.id), `${asset.id}: unused runtime asset was published`);

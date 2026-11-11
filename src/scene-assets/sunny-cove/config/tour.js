@@ -1,10 +1,7 @@
-// Metres / seconds. The curated coastline and camera corridor are one layout.
-// Change them together; this is not an arbitrary route or dock editor.
+// Metres / seconds. A continuous water tour with no stopping or berth.
 export const COVE_TOUR = Object.freeze({
-  dock: Object.freeze({ position: Object.freeze([-7, 0, .25]), rotation: 0 }),
-  navigation: Object.freeze({ travelDuration: 90, dwellDuration: 18, startProgress: .2 }),
+  navigation: Object.freeze({ travelDuration: 90, dwellDuration: 0, startProgress: .104, continuous: true }),
   camera: Object.freeze({ holdDuration: 20, transitionDuration: 12 }),
-  changeoverDwell: 4,
 });
 
 /** Align an authored route to the dock's actual world berth and bow direction. */

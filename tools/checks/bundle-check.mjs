@@ -41,7 +41,7 @@ async function directoryBytes(url) {
   return bytes;
 }
 const publishedBytes = await directoryBytes(root);
-assert.ok(publishedBytes <= 85_000_000, `Published directory ${publishedBytes} exceeds the 85 MB compatibility budget`);
+assert.ok(publishedBytes <= 4_000_000, `Published directory ${publishedBytes} exceeds the 4 MB compatibility budget`);
 console.log(JSON.stringify({ productionEntries: entrypoints, initialJsBytes: initialBytes,
   initialJsGzip: initialGzip, largestChunkBytes: largest, totalJsBytes: total,
-  publishedBytes, publishedBudgetBytes: 85_000_000, sharedEngine: true }, null, 2));
+  publishedBytes, publishedBudgetBytes: 4_000_000, sharedEngine: true }, null, 2));

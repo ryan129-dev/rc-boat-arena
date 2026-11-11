@@ -1,4 +1,4 @@
-// Only current Sunny Cove source models and delivery variants belong in the project.
+// Validate local source inventory separately from the single-boat production contract.
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -105,9 +105,11 @@ for (const asset of runtime.assets) {
 }
 const coveById = new Map(cove.assets.map(asset => [asset.id, asset]));
 const library = catalogs[0];
-assert(library.assets.every(asset => asset.kind === 'model'), 'Local catalog must contain only active models');
-assert.deepEqual(library.assets.map(asset => asset.path).sort(), cove.assets.map(asset => asset.path).sort(),
-  'Local library and Cove must cover the same source models');
+assert(library.assets.every(asset => asset.kind === 'model'), 'Local catalog must contain only models');
+assert.deepEqual(BOATS.map(boat => boat.id), ['riva-aquarama'], 'Production supports only the classic mahogany yacht');
+assert.equal(DEFAULT_BOAT_ID, 'riva-aquarama');
+assert.deepEqual(cove.assets.map(asset => asset.id), [DEFAULT_BOAT_ID],
+  'Production may not silently restore optional boats, shore or dock models');
 for (const source of cove.assets) {
   const entry = library.assets.find(asset => asset.path === source.path);
   assert.equal(entry.id, `builtin-${source.id}`, `${source.id}: local annotation ID changed`);
@@ -120,7 +122,8 @@ for (const source of cove.assets) {
 }
 const libraryDirectories = (await readdir(new URL('assets/library/', root), { withFileTypes: true }))
   .filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
-assert.deepEqual(libraryDirectories, cove.assets.map(asset => asset.id).sort(), 'Unused model directories remain');
+assert.deepEqual(libraryDirectories, library.assets.map(asset => asset.id.replace(/^builtin-/, '')).sort(),
+  'Local model directories must match their own catalog');
 assert.equal(coveById.size, cove.assets.length, 'Duplicate Cove source IDs');
 assert.equal(new Set(cove.assets.map(asset => asset.path)).size, cove.assets.length, 'Duplicate Cove source paths');
 assert.deepEqual(cove.assets.filter(asset => asset.role === 'boat').map(asset => asset.id).sort(),
@@ -195,7 +198,7 @@ try {
 }
 
 const core = runtime.core?.cove;
-assert(Array.isArray(core) && core.includes(DEFAULT_BOAT_ID), 'Cove core must name its default boat');
+assert.deepEqual(core, [DEFAULT_BOAT_ID], 'The complete scene must load only Riva, with no background models');
 assert.equal(new Set(core).size, core.length, 'Duplicate startup model IDs');
 for (const id of core) {
   assert(coveById.has(id), `${id}: startup model is absent from the Cove source manifest`);
@@ -208,15 +211,11 @@ const deliveredSize = id => {
 };
 const sceneryBytes = cove.assets.filter(asset => asset.role !== 'boat')
   .reduce((total, asset) => total + deliveredSize(asset.id), 0);
-const boatBudgets = {};
-for (const boat of BOATS) {
-  const coreBytes = core.reduce((total, id) => total + deliveredSize(id === DEFAULT_BOAT_ID ? boat.id : id), 0);
-  const coreLimit = boat.id === DEFAULT_BOAT_ID ? 1_500_000 : 2_000_000;
-  const fullSceneBytes = sceneryBytes + deliveredSize(boat.id);
-  assert(coreBytes <= coreLimit, `${boat.id} startup ${coreBytes} exceeds ${coreLimit} bytes`);
-  assert(fullSceneBytes <= 8_000_000, `${boat.id} selected scene ${fullSceneBytes} exceeds 8 MB`);
-  boatBudgets[boat.id] = { coreBytes, coreLimit, fullSceneBytes, sceneLimit: 8_000_000 };
-}
+assert.equal(sceneryBytes, 0, 'The water and sky must not download scenery GLBs');
+const coreBytes = deliveredSize(DEFAULT_BOAT_ID);
+const coreLimit = 250_000;
+assert(coreBytes <= coreLimit, `Riva model ${coreBytes} exceeds the 250 KB scene budget`);
+const boatBudgets = { [DEFAULT_BOAT_ID]: { coreBytes, coreLimit, fullSceneBytes: coreBytes, sceneLimit: coreLimit } };
 console.log(JSON.stringify({ models: checked.size, activeRuntimeModels: activeVariants.length,
   compressedViews, mappingChecks, textureFormats: [...textureFormats].sort(), runtimeImageBytes,
   sceneryBytes, boatBudgets }, null, 2));

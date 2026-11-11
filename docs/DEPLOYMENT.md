@@ -1,6 +1,6 @@
 # GitHub 与 Vercel 自动部署
 
-GitHub 仓库：`lzq976291321/rc-boat-arena`（私有）。Vercel 项目：`rc-boat-arena`，所属团队 `sz976291321-gmailcoms-projects`。使用 Vercel 原生 GitHub 集成，生产分支为 `main`。
+GitHub 仓库：`ryan129-dev/rc-boat-arena`（原地址 `lzq976291321/rc-boat-arena`）。Vercel 项目：`rc-boat-arena`，所属团队 `sz976291321-gmailcoms-projects`。使用 Vercel 原生 GitHub 集成，生产分支为 `main`。
 
 这是个人项目，只保留 `main` 分支：本地实验完成、检查通过后直接提交并推送 `main`，不保留长期功能分支、合并提交或 PR 流程。唯一发布动作是推送 `main`，由 Vercel 自动构建并更新生产域名；本地 `vercel` 手动部署和额外发布脚本都不再使用。
 
@@ -66,9 +66,9 @@ pnpm check:routes
 pnpm check:bundle
 ```
 
-部署后核对 Vercel 记录的提交 SHA、来源 `git`、目标 `production` 和状态 `READY`，再打开晴湾首页检查各船型、巡游、船侧近观、光照、暂停与照片导出，并验证旧路径返回首页及子路径部署。核对本次发布清单和模型哈希，确认未用库模型、湿地资源和本地素材工具未发布。手机流畅度与画面需实体设备验收。GitHub 推送成功本身不代表网站已发布成功。
+部署后核对 Vercel 记录的提交 SHA、来源 `git`、目标 `production` 和状态 `READY`，再打开晴湾首页检查 Riva、连续巡游、船侧近观、光照、暂停与照片导出。确认旧船型偏好不触发其他模型请求、无后台场景下载，并验证旧路径返回首页及子路径部署。核对本次发布清单和模型哈希，确认未用库模型、湿地资源和本地素材工具未发布。手机流畅度与画面需实体设备验收。GitHub 推送成功本身不代表网站已发布成功。
 
-发布预算以实际产物检查为准：默认核心GLB≤1.5 MB、可选船核心≤2 MB、完整单船场景≤8 MB、兼容原件后的发布目录≤85 MB。这些是验收门槛，不是尚未完成的压缩或上线结果。
+发布预算以实际产物检查为准：完整场景仅一个 Riva GLB，≤250 KB；兼容 Riva 原件后的发布目录≤4 MB。其他船、山岸、植被和码头素材不发布。这些是验收门槛，不是公网加载时间或上线结果。
 
 网页只发布 Vite 构建输出。源码与可发布素材进入 Git，但只有晴湾白名单进入网站；`.env*`、依赖、构建输出、`tools/local/`、模型原始工程和 `artifacts/` 按 `.gitignore` 保持本地。模型转换工具位于 `tools/assets/`，本地转换产物只有在完成运行接入和来源许可核对后才进入 `public/`。
 

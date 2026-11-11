@@ -4,7 +4,9 @@ const check = (value, name) => { if (!value) throw new Error(name); assertions.p
 const pause = () => new Promise(resolve => setTimeout(resolve, 0));
 const moods = { afternoon: { time: '15:00', weather: 'sun', label: 'day' } };
 const cameras = [{ id: 'auto', label: 'auto' }];
-const boats = [{ id: 'boat', label: 'Boat' }];
+const boats = [{ id: 'boat', label: 'Boat' }, { id: 'retired-boat', label: 'Retired boat' }];
+const preferenceKey = 'sunny-cove.startup-check.preferences';
+const previousPreferences = localStorage.getItem(preferenceKey);
 let callbacks, snapshot, page, calls = 0;
 function fakeViewer(options) {
   callbacks = options; calls++;
@@ -17,10 +19,12 @@ function fakeViewer(options) {
 }
 function mount() {
   return createViewingPage({ createViewer: fakeViewer, moods, cameraModes: cameras, debugKey: '__TEST__',
-    capturePrefix: 'test', manifestPath: 'unused.json', boats, defaultBoatId: 'boat' });
+    capturePrefix: 'test', manifestPath: 'unused.json', boats, defaultBoatId: 'boat', preferenceKey });
 }
 try {
+  localStorage.setItem(preferenceKey, JSON.stringify({ boatId: 'retired-boat', mood: 'afternoon', cameraMode: 'auto' }));
   page = mount(); await pause();
+  check(callbacks.boatId === 'boat' && callbacks.mood === 'afternoon' && callbacks.cameraMode === 'auto', 'legacy boat preference is ignored while valid viewing preferences survive');
   check(!document.querySelector('#loading').hidden && document.querySelector('#pause').disabled, 'loading remains until first frame');
   snapshot.renderCount = 1; callbacks.onFrame(snapshot);
   check(document.querySelector('#loading').hidden && !document.querySelector('#pause').disabled, 'first frame enables controls');
@@ -39,3 +43,7 @@ try {
   check(document.querySelector('#loading').hidden && !document.querySelector('#pause').disabled, 'retry recovers on first frame');
   page.dispose(); document.body.innerHTML = `<pre id="result">${JSON.stringify({ status: 'passed', assertions })}</pre>`;
 } catch (error) { document.body.innerHTML = `<pre id="result">${JSON.stringify({ status: 'failed', assertions, error: String(error) })}</pre>`; }
+finally {
+  if (previousPreferences === null) localStorage.removeItem(preferenceKey);
+  else localStorage.setItem(preferenceKey, previousPreferences);
+}

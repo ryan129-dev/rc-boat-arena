@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import { pixelRatio } from '../rendering/pixel-budget.js';
@@ -13,8 +12,7 @@ function multisampleCount(renderer) {
   const color = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) || [];
   const depth = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) || [];
   const supported = Array.from(color).filter(samples => samples > 1 && samples <= renderer.capabilities.maxSamples && depth.includes(samples));
-  // Keep coverage antialiasing for foliage even when the device reports 4x as
-  // its smallest HDR/depth sample count; otherwise use the less expensive 2x.
+  // Use the smallest supported HDR/depth sample count for crisp hull edges.
   return supported.includes(2) ? 2 : supported.includes(4) ? 4 : 0;
 }
 
@@ -24,7 +22,7 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
   if (!canvas || typeof createScene !== 'function') throw new Error('A canvas and createScene factory are required');
   signal?.throwIfAborted();
   const loading = new AbortController();
-  let renderer, asset, composer, bloom, output, antialias, renderPass, resizeObserver, intersection;
+  let renderer, asset, composer, output, antialias, renderPass, resizeObserver, intersection;
   let samples = 0;
   let frame = 0, last = 0, renderCount = 0, lastNotification = -1;
   let disposed = false, visible = false, pageSuspended = false, contextLost = false, failed = false;
@@ -102,7 +100,7 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
     window.removeEventListener('pagehide', pageHide); window.removeEventListener('pageshow', pageShow);
     canvas.removeEventListener('webglcontextlost', lost);
     signal?.removeEventListener('abort', abort);
-    asset?.dispose(); bloom?.dispose(); output?.dispose(); antialias?.dispose(); renderPass?.dispose(); composer?.dispose();
+    asset?.dispose(); output?.dispose(); antialias?.dispose(); renderPass?.dispose(); composer?.dispose();
     renderer?.dispose(); renderer?.forceContextLoss();
   }
   try {
@@ -119,11 +117,10 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
       type: THREE.HalfFloatType, samples,
     }));
     renderPass = new RenderPass(asset.scene, asset.camera);
-    bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.45, 1.05);
     output = new OutputPass();
-    composer.addPass(renderPass); composer.addPass(bloom); composer.addPass(output);
+    composer.addPass(renderPass); composer.addPass(output);
     if (samples) {
-      // RenderPass and Bloom keep the scene in readBuffer; screen output needs no
+      // RenderPass keeps the scene in readBuffer; screen output needs no
       // swap. Avoid allocating a second HDR multisample/depth buffer each frame.
       output.needsSwap = false;
       composer.writeBuffer.samples = 0;
@@ -145,13 +142,6 @@ export async function createSceneViewer({ createScene, canvas, assetBaseUrl, qua
   } catch (error) { dispose(); throw error; }
   return {
     state, scene: asset.scene, camera: asset.camera, boat: asset.boat, renderer,
-    async setBoat(id) {
-      if (!state.ready || !asset.setBoat) throw new Error('当前场景不支持换船');
-      const change = asset.setBoat(id);
-      notify();
-      try { return await change; }
-      finally { if (!disposed) { draw(); notify(); } }
-    },
     setPaused(value) { state.paused = !!value; sync(); draw(); notify(); return state.paused; },
     setMood(name) {
       const preset = asset.setMood(name, { immediate: state.paused });

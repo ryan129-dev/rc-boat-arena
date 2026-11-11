@@ -1,7 +1,9 @@
+import assert from 'node:assert/strict';
 import { readFile, mkdir, copyFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SCENE_MODEL_VARIANTS } from '../../src/shared/assets/scene-models.js';
+import { BOATS } from '../../src/scene-assets/sunny-cove/config/boats.js';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -9,13 +11,21 @@ const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 // carries only this composition, including its original source URLs and credits.
 export async function covePublicFiles(root = projectRoot) {
   const catalog = JSON.parse(await readFile(path.join(root, 'public/assets/cove/asset-manifest.json'), 'utf8'));
+  const runtimeCatalog = JSON.parse(await readFile(path.join(root, 'public/assets/runtime/asset-manifest.json'), 'utf8'));
+  const activeIds = BOATS.map(boat => boat.id).sort();
+  assert.deepEqual(activeIds, ['riva-aquarama'], 'Production is the single classic yacht scene');
+  assert.deepEqual(catalog.assets.map(asset => asset.id).sort(), activeIds, 'Source manifest must match the active scene');
+  assert.deepEqual(runtimeCatalog.assets.map(asset => asset.id).sort(), activeIds, 'Runtime manifest must match the active scene');
   const files = new Set(['favicon.svg', 'assets/cove/asset-manifest.json', 'assets/cove/SOURCES.md',
     'assets/runtime/asset-manifest.json', 'assets/runtime/SOURCES.md']);
   for (const asset of catalog.assets) {
     if (!asset.path?.startsWith('/assets/') || asset.path.includes('..')) throw new Error(`Invalid public asset: ${asset.id}`);
     files.add(asset.path.slice(1));
     const runtime = SCENE_MODEL_VARIANTS[asset.path.slice('/assets/'.length)];
-    if (runtime) files.add(`assets/${runtime}`);
+    const variant = runtimeCatalog.assets.find(entry => entry.id === asset.id);
+    assert.equal(variant.sourcePath, asset.path, `${asset.id}: runtime source mismatch`);
+    assert.equal(variant.path, `/assets/${runtime}`, `${asset.id}: runtime mapping mismatch`);
+    files.add(`assets/${runtime}`);
     const sourceRecord = path.posix.join(path.posix.dirname(asset.path.slice(1)), 'SOURCES.md');
     await access(path.join(root, 'public', sourceRecord));
     files.add(sourceRecord);

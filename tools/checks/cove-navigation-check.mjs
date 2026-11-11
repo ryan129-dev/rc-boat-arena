@@ -89,11 +89,11 @@ test("world berth anchors rotate a closed route toward the configured bow withou
     { position: { x: 0, z: 0 }, heading: Infinity }]) assert.throws(() => routeAtBerth(COVE_ROUTE, anchor), TypeError);
 });
 
-test("a replacement rests in the berth for four seconds before a continuous departure and return", () => {
+test("legacy independent navigation can rest at its anchor before departure", () => {
   const boat = createCoveNavigation(); run(boat, 21);
-  assert.equal(resetCoveNavigation(boat, { atBerth: true, dwellDuration: COVE_TOUR.changeoverDwell }), boat);
+  assert.equal(resetCoveNavigation(boat, { atBerth: true, dwellDuration: 4 }), boat);
   const berth = { ...boat };
-  assert.equal(COVE_TOUR.changeoverDwell, 4); assert.equal(boat.phase, "docked"); assert.equal(boat.speed, 0);
+  assert.equal(boat.phase, "docked"); assert.equal(boat.speed, 0);
   for (let frame = 0; frame < 4 * 60 - 1; frame++) {
     stepCoveNavigation(boat, 1 / 60);
     assert.equal(boat.phase, "docked");
@@ -111,4 +111,32 @@ test("a replacement rests in the berth for four seconds before a continuous depa
   assert.ok(maxTurn < .025, `replacement route heading jump ${maxTurn}`);
   assert.equal(boat.phase, "docked");
   assert.ok(Math.hypot(boat.x - berth.x, boat.z - berth.z) < 1e-8);
+});
+
+
+test("the production tour is a 90-second continuous cruise with constant speed and no mooring", () => {
+  assert.equal(COVE_TOUR.navigation.continuous, true);
+  assert.equal(COVE_TOUR.navigation.travelDuration, 90);
+  assert.equal(COVE_TOUR.navigation.dwellDuration, 0);
+  const boat = createCoveNavigation(COVE_TOUR.navigation), initial = { ...boat };
+  let maxStep = 0, maxTurn = 0;
+  for (let i = 0; i < 90 * 60; i++) {
+    const before = { ...boat }; stepCoveNavigation(boat, 1 / 60);
+    assert.equal(boat.phase, "cruising"); assert.equal(boat.speed, initial.speed);
+    assert.ok(boat.speed > 0);
+    for (const key of ["x", "z", "speed", "heading", "turnRate"]) assert.ok(Number.isFinite(boat[key]));
+    maxStep = Math.max(maxStep, Math.hypot(boat.x - before.x, boat.z - before.z));
+    maxTurn = Math.max(maxTurn, Math.abs(wrap(boat.heading - before.heading)));
+  }
+  assert.ok(maxStep < .025); assert.ok(maxTurn < .025);
+  assert.ok(Math.hypot(boat.x - initial.x, boat.z - initial.z) < 1e-7);
+  assert.ok(Math.abs(wrap(boat.heading - initial.heading)) < 1e-7);
+  resetCoveNavigation(boat); assert.deepEqual(boat, initial);
+  for (const seconds of [33, 79, 99, 223]) {
+    const states = [30, 60, 144].map(hz => run(createCoveNavigation(COVE_TOUR.navigation), seconds, hz));
+    for (const state of states.slice(1)) {
+      assert.ok(Math.hypot(state.x - states[0].x, state.z - states[0].z) < 1e-7);
+      assert.ok(Math.abs(wrap(state.heading - states[0].heading)) < 1e-7);
+    }
+  }
 });

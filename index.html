@@ -5,36 +5,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#87beb9" />
-    <meta name="description" content="选一艘船，配一段晴湾时光。看它从木栈桥出航、掠过浅水、慢慢归港。" />
-    <title>Sunny Cove · 晴湾船坞</title>
-    <link rel="preload" as="fetch" href="./assets/runtime/modular-wooden-pier.glb" crossorigin="anonymous" />
-    <link rel="preload" as="fetch" href="./assets/runtime/rock-09.glb" crossorigin="anonymous" />
-    <link rel="preload" as="fetch" href="./assets/runtime/rock-face-01.glb" crossorigin="anonymous" />
+    <meta name="description" content="桃花心木经典游艇，轻浪与天空倒影。" />
+    <title>Sunny Cove · 晴湾</title>
+    <link rel="preload" as="fetch" type="model/gltf-binary" href="./assets/runtime/riva-aquarama.glb" crossorigin="anonymous" fetchpriority="high" />
     <link rel="stylesheet" href="./src/cove/style.css" />
-    <script>
-      // Start the selected hull before the module graph finishes parsing. The
-      // boat list mirrors config/boats.js; an unknown saved value uses the default.
-      (() => {
-        const ids = ['riva-aquarama', 'maverick-gt', 'motor-whaleboat', 'assault-boat'];
-        let id = 'riva-aquarama';
-        try {
-          const stored = JSON.parse(localStorage.getItem('sunny-cove.preferences.v1'));
-          if (stored && ids.includes(stored.boatId)) id = stored.boatId;
-        } catch { /* Storage is optional. */ }
-        const link = document.createElement('link');
-        link.rel = 'preload'; link.as = 'fetch'; link.type = 'model/gltf-binary';
-        link.href = `./assets/runtime/${id}.glb`; link.crossOrigin = 'anonymous'; link.fetchPriority = 'high';
-        document.head.append(link);
-      })();
-    </script>
   </head>
   <body>
-    <canvas id="world" class="fixed inset-0 block h-full w-full" aria-label="晴湾船坞，船艇自动出航、巡游与归港"></canvas>
+    <canvas id="world" class="fixed inset-0 block h-full w-full" aria-label="晴湾，桃花心木经典游艇在水面巡游"></canvas>
     <div class="vignette" aria-hidden="true"></div>
     <header class="masthead flex items-center justify-between" data-interface>
-      <a class="wordmark flex items-center gap-3" href="./" title="晴湾船坞首页">
+      <a class="wordmark flex items-center gap-3" href="./" title="晴湾首页">
         <span class="seal" aria-hidden="true">≋</span>
-        <span>SUNNY COVE<small>晴湾船坞</small></span>
+        <span>SUNNY COVE<small>晴湾</small></span>
       </a>
       <nav class="flex items-center gap-3 sm:gap-7" aria-label="观赏操作">
         <button id="sound" data-ready disabled aria-label="切换环境水声" aria-pressed="false"><span aria-hidden="true">◌</span><span id="sound-label">开启水声</span></button>
@@ -46,18 +28,16 @@
     <main>
       <div class="scene-caption" data-interface>
         <p class="eyebrow"><span id="mood-label">午后</span><i></i><span id="clock">15:20</span></p>
-        <h1 id="boat-name">晴湾船坞</h1>
+        <h1 id="boat-name">桃花心木经典游艇</h1>
         <p id="weather">晴朗 · 轻浪</p>
       </div>
-      <div class="shot-caption" data-interface><span class="status-dot"></span><span id="boat-phase">准备出航</span><span class="shot-separator" aria-hidden="true">·</span><span id="shot-name">贴水跟随</span></div>
+      <div class="shot-caption" data-interface><span class="status-dot"></span><span id="boat-phase">水面巡游</span><span class="shot-separator" aria-hidden="true">·</span><span id="shot-name">贴水跟随</span></div>
       <div id="loading" class="loading flex items-center gap-3" role="status" aria-live="polite">
-        <span id="loader" class="loader" aria-hidden="true"></span><span id="load-text">正在准备浅湾与船坞…</span><button id="retry" hidden>重新载入</button>
+        <span id="loader" class="loader" aria-hidden="true"></span><span id="load-text">正在准备游艇与水面…</span><button id="retry" hidden>重新载入</button>
       </div>
       <div id="toast" class="toast" role="status" hidden></div>
-      <div id="boat-feedback" class="boat-feedback flex items-center justify-center gap-2" data-interface role="status" aria-live="polite" hidden><span id="boat-feedback-text"></span><button id="boat-retry" hidden>重试</button></div>
     </main>
     <footer class="viewing-bar cove-controls flex flex-col items-stretch gap-2" data-interface>
-      <div id="boat-picker" class="boat-picker grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="选择巡游船艇"></div>
       <div class="cove-controls-row flex items-center justify-between gap-2 sm:gap-4">
         <div class="mood-switch flex items-center" role="group" aria-label="光照时段">
           <button data-mood="afternoon" data-ready disabled aria-pressed="true"><span aria-hidden="true">☼</span> 午后</button>
@@ -76,7 +56,7 @@
       <h2>风景的来处</h2>
       <div id="credits-list">正在读取素材来源…</div>
       <div class="craft-note">
-        <p>浅海水面、天空、海床、巡游与船坞组合由本项目制作。船艇、码头与岸景素材保留各自作者和许可。</p>
+        <p>水面、天空与巡游由本项目制作。游艇模型保留原作者和许可。</p>
         <div class="flex flex-wrap gap-5"><a href="./assets/cove/SOURCES.md" target="_blank" rel="noopener">完整来源记录 ↗</a></div>
       </div>
     </dialog>

@@ -171,13 +171,14 @@ test('default contact shape and stern location retain the original standalone be
   original.dispose(); explicit.dispose(); history.dispose();
 });
 
-test('selected hull dimensions, contact shape and stern trail remain isolated between all boat profiles', () => {
-  const beams = { 'riva-aquarama': .738211833252415, 'maverick-gt': .905438596491228,
-    'motor-whaleboat': .7366608893962433, 'assault-boat': 1.0754789340060562 };
-  const interactions = BOATS.map(definition => createBoatWaterInteraction({ length: definition.length,
+test('Riva and an independent custom contact profile keep dimensions and trails isolated', () => {
+  const profiles = [BOATS[0], { id: 'test-wide-hull', length: 3.1, draft: .2,
+    contact: { sternWidth: .9, bowTaper: .7, wakeStrength: .8, sternOffset: .45 } }];
+  const beams = { 'riva-aquarama': .738211833252415, 'test-wide-hull': 1.1 };
+  const interactions = profiles.map(definition => createBoatWaterInteraction({ length: definition.length,
     beam: beams[definition.id], draft: definition.draft, ...definition.contact, sampleSurface: flat }));
   for (let index = 0; index < interactions.length; index++) {
-    const interaction = interactions[index], definition = BOATS[index], shape = definition.contact;
+    const interaction = interactions[index], definition = profiles[index], shape = definition.contact;
     assert.deepEqual([...interaction.uniforms.uContactSize.value],
       [definition.length, beams[definition.id], definition.draft].map(Math.fround));
     assert.deepEqual([...interaction.uniforms.uContactShape.value],
@@ -201,7 +202,7 @@ test('selected hull dimensions, contact shape and stern trail remain isolated be
   assert.ok(second.snapshot().trail.count > 1);
   const wake = second.uniforms.uWakePoints.value;
   assert.ok(Math.abs(wake[0] - 3.4) < 1e-6);
-  assert.ok(Math.abs(wake[1] - (-2 + BOATS[1].length * BOATS[1].contact.sternOffset)) < 1e-6);
+  assert.ok(Math.abs(wake[1] - (-2 + profiles[1].length * profiles[1].contact.sternOffset)) < 1e-6);
   assert.equal(wake[4], surviving.uniforms.uWakePoints[0], 'old stern samples remain in world coordinates');
   assert.equal(wake[5], surviving.uniforms.uWakePoints[1]);
   assert.ok(finiteUniforms(second));

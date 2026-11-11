@@ -4,7 +4,7 @@ import { createViewingPage } from '../shared/viewing/page.js';
 const page = createViewingPage({
   createViewer: createSunnyCoveViewer, assetBaseUrl: new URL('./assets/', document.baseURI).href, moods: MOODS, cameraModes: CAMERA_MODES,
   debugKey: '__COVE__', capturePrefix: 'sunny-cove',
-  manifestPath: 'cove/asset-manifest.json', loadingText: '正在准备浅湾与船坞…',
-  boats: BOATS, defaultBoatId: DEFAULT_BOAT_ID, preferenceKey: 'sunny-cove.preferences.v1',
+  manifestPath: 'cove/asset-manifest.json', loadingText: '正在准备游艇与水面…',
+  boats: BOATS.filter(boat => boat.id === DEFAULT_BOAT_ID), defaultBoatId: DEFAULT_BOAT_ID, preferenceKey: 'sunny-cove.preferences.v1',
 });
 if (import.meta.hot) import.meta.hot.dispose(() => page.dispose());

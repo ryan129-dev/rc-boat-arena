@@ -78,16 +78,17 @@ function apply(state, configuration, dt = 0) {
   const { clock, path, travelDuration, dwellDuration } = configuration;
   const duration = travelDuration + dwellDuration;
   const cycle = Math.floor(clock / duration), cycleTime = clock - cycle * duration;
-  const parked = cycleTime >= travelDuration;
+  const parked = !configuration.continuous && cycleTime >= travelDuration;
   const progress = clamp(cycleTime / travelDuration, 0, 1);
-  const travelled = ease(progress) * path.length;
+  const travelled = (configuration.continuous ? progress : ease(progress)) * path.length;
   const point = along(path, travelled);
   const turn = dt > 0 ? angleDelta(state.heading, point.heading) : 0;
   state.x = point.x; state.z = point.z;
   state.heading = dt > 0 ? state.heading + turn : point.heading;
-  state.speed = parked ? 0 : path.length * 6 * progress * (1 - progress) / travelDuration;
+  state.speed = configuration.continuous ? path.length / travelDuration
+    : parked ? 0 : path.length * 6 * progress * (1 - progress) / travelDuration;
   state.turnRate = dt > 0 ? turn / dt : 0;
-  state.phase = parked ? "docked" : progress < 0.15 ? "departing" : progress > 0.8 ? "approaching" : "cruising";
+  state.phase = configuration.continuous ? "cruising" : parked ? "docked" : progress < 0.15 ? "departing" : progress > 0.8 ? "approaching" : "cruising";
   state.progress = progress;
   state.cycle = cycle;
   state.cycleTime = cycleTime;
@@ -101,13 +102,13 @@ function apply(state, configuration, dt = 0) {
  * Callers adapting the route must retain clearance for their hull and scenery.
  */
 export function createCoveNavigation({ route = COVE_ROUTE, travelDuration = 90,
-  dwellDuration = 18, startProgress = 0.2 } = {}) {
+  dwellDuration = 18, startProgress = 0.2, continuous = false } = {}) {
   const path = buildRoute(route);
   const travel = Math.max(10, finite(travelDuration, 90));
   const start = clamp(finite(startProgress, 0.2), 0, 1);
   const configuration = {
-    path, travelDuration: travel, dwellDuration: Math.max(0, finite(dwellDuration, 18)),
-    start, clock: travel * start, startDistance: ease(start) * path.length,
+    path, continuous: !!continuous, travelDuration: travel, dwellDuration: continuous ? 0 : Math.max(0, finite(dwellDuration, 18)),
+    start, clock: travel * start, startDistance: (continuous ? start : ease(start)) * path.length,
   };
   const state = { x: 0, z: 0, heading: 0, speed: 0, turnRate: 0, elapsed: 0, phase: "cruising" };
   configurations.set(state, configuration);

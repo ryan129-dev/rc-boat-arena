@@ -4,23 +4,13 @@ import { MOOD_TRANSITION_SECONDS } from './presets.js';
 import { sampleWaterSurface, waterSurfaceGLSL, hullUniformsGLSL, hullSurfaceGLSL, boatContactGLSL } from '../boat-water-interaction/index.js';
 import { WAKE_CAPACITY } from '../boat-water-interaction/trail.js';
 
-/** Clear water with its own planar reflection and depth-aware refraction.
- * The caller owns scene/renderer; this asset owns both targets and its mesh.
- * Any submerged scene geometry is visible through the surface, including a
- * separately supplied seabed. No page, camera or boat is owned by this factory.
+/** Open water: one planar reflection of the sky and boat, with surface contact.
+ * Owns one reflection target and its mesh; no seabed or refraction pass is needed.
  */
 export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {}) {
-  const refraction = new THREE.WebGLRenderTarget(512, 512, {
-    type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
-    depthBuffer: true,
-  });
-  refraction.depthTexture = new THREE.DepthTexture(512, 512, THREE.UnsignedIntType);
   const uniforms = {
     tDiffuse: { value: null }, color: { value: new THREE.Color() }, textureMatrix: { value: new THREE.Matrix4() },
-    tRefraction: { value: null }, tDepth: { value: null },
-    uResolution: { value: new THREE.Vector2(512, 512) },
-    uTime: { value: 0 }, uNear: { value: 0.1 }, uFar: { value: 1400 },
-    uInverseViewProjection: { value: new THREE.Matrix4() },
+    uTime: { value: 0 },
     uBoat: { value: new THREE.Vector4() },
     uDeep: { value: new THREE.Color('#167e89') },
     uShallow: { value: new THREE.Color('#53c2ad') },
@@ -58,11 +48,9 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
           vClip=projectionMatrix*mv;gl_Position=vClip;
         }`,
       fragmentShader: `
-        uniform sampler2D tDiffuse,tRefraction,tDepth;
-        uniform float uTime,uNear,uFar,uLight,uWaves,uClarity;
-        uniform vec2 uResolution;
+        uniform sampler2D tDiffuse;
+        uniform float uTime,uLight,uWaves,uClarity;
         uniform vec4 uBoat;
-        uniform mat4 uInverseViewProjection;
         uniform vec3 uDeep,uShallow,uFog,uSun,uSunColor;
         ${hullUniformsGLSL}
         ${waterSurfaceGLSL}
@@ -99,21 +87,6 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
           slope+=noiseSlope(rotation*p*9.3-drift*1.2)*rotation*.055*(1.-smoothstep(.35,1.8,9.3*footprint));
           return slope;
         }
-        float linearDepth(float d){return uNear*uFar/(uFar-d*(uFar-uNear));}
-        float caustic(vec2 p){
-          p+=vec2(noise(p*1.7+uTime*.12),noise(p.yx*1.4-uTime*.16))*1.15;
-          p+=vec2(sin(p.y*2.1+uTime*.44),cos(p.x*1.9-uTime*.36))*.25;
-          vec2 cell=floor(p),f=fract(p);float a=9.,b=9.;
-          for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
-            vec2 g=vec2(float(x),float(y));vec2 id=cell+g;
-            vec2 n=vec2(hash(id),hash(id+37.5));
-            vec2 q=g+.5+.33*sin(uTime*.48+6.2831*n)-f;
-            float d=dot(q,q);if(d<a){b=a;a=d;}else if(d<b){b=d;}
-          }
-          float line=b-a;
-          float width=max(fwidth(line)*1.2,.012);
-          return 1.-smoothstep(.01,.055+width,line);
-        }
         void main(){
           vec2 p=vWorld.xz;vec3 view=normalize(cameraPosition-vWorld);
           float dist=length(cameraPosition-vWorld);
@@ -133,31 +106,9 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
           float hull=length(local/vec2(.43,1.24));
           vec3 normal=normalize(vec3(-grad.x,1.,-grad.y));
           float fresnel=.0204+.9796*pow(1.-max(dot(view,normal),0.),5.);
-          vec2 screen=vClip.xy/vClip.w*.5+.5;
-          float depth=linearDepth(texture2D(tDepth,screen).x);
-          float thickness=max(0.,depth-vDepth);
-          vec2 offset=normal.xz*min(thickness,1.8)*.025;
-          vec2 uv=clamp(screen+offset,1./uResolution,1.-1./uResolution);
-          float distortedDepth=linearDepth(texture2D(tDepth,uv).x);
-          if(distortedDepth<vDepth+.015) uv=screen;
-          vec4 floorWorld=uInverseViewProjection*vec4(uv*2.-1.,texture2D(tDepth,uv).x*2.-1.,1.);
-          floorWorld/=floorWorld.w;
-          float verticalDepth=clamp(-floorWorld.y,0.,24.);
-          vec3 bottom=texture2D(tRefraction,uv).rgb;
-          float opticalPath=min(length(floorWorld.xyz-vWorld),80.);
-          vec3 absorption=exp(-opticalPath*vec3(.35,.12,.07)*(.8/max(uClarity,.1)));
-          // Sunlight crosses the water on the way down as well. Without this
-          // second path, a brightly lit sand floor flattens the whole bay green.
-          bottom*=exp(-verticalDepth/max(uSun.y,.18)*vec3(.28,.10,.045));
-          vec3 body=mix(uDeep,uShallow,exp(-verticalDepth*.8));
-          body*=.50;
-          vec3 transmitted=bottom*absorption+body*(1.-absorption);
-          vec2 floorPoint=floorWorld.xz;
-          float shallow=exp(-verticalDepth*1.6)*smoothstep(.10,.35,verticalDepth);
-          float caustics=caustic(floorPoint*2.1)*.65+caustic(floorPoint*3.7+8.)*.35;
-          caustics*=smoothstep(.20,.65,noise(floorPoint*.73+uTime*.07));
-          // Light is focused onto the visible bottom, not painted over the sea.
-          transmitted+=bottom*vec3(1.1,1.,.55)*caustics*shallow*uLight*1.7;
+          // The deep open sea has no visible floor. Use its absorption colour
+          // directly, instead of drawing the whole scene again through the water.
+          vec3 transmitted=uDeep*(.42+.08*uClarity);
           vec2 refUV=clamp(vRef.xy/vRef.w+normal.xz*clamp(.65/max(dist,1.),.001,.06),.002,.998);
           vec3 reflected=texture2D(tDiffuse,refUV).rgb;
           vec3 reflectionTint=mix(vec3(.91,.98,1.),vec3(.52,.72,.94),smoothstep(18.,150.,dist));
@@ -168,10 +119,6 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
           col+=uSunColor*(glint*3.2+broad*.055)*uLight*(1.-contact.w*2.);
           col=mix(col,mix(uShallow,vec3(.46,.65,.60),.35)*(.42+.58*uLight),contact.w);
           col=mix(col,vec3(.69,.79,.73)*(.38+.62*uLight),contact.z);
-          // Thin lapping edge in contact with the submerged shoreline.
-          float foam=(1.-smoothstep(.04,.17,verticalDepth))*smoothstep(.002,.028,verticalDepth);
-          foam*=smoothstep(.40,.78,noise(p*8.+uTime*.25));
-          col=mix(col,vec3(.72,.82,.73)*uLight,foam*.26);
           col*=1.-.12*exp(-hull*hull*1.4);
           float horizon=1.-exp(-dist*dist*.000007);
           col=mix(col,uFog,horizon*.14);
@@ -181,14 +128,10 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
         }`,
     },
   });
-  mesh.name = 'Depth-aware turquoise water with refraction and caustics';
+  mesh.name = 'Open water with sky, hull reflection and a continuous wake';
   mesh.rotation.x = -Math.PI / 2;
   scene.add(mesh);
   const u = mesh.material.uniforms;
-  // Reflector clones its uniforms. Render-target textures must stay attached
-  // to their owning target, so bind them after that clone.
-  u.tRefraction.value = refraction.texture;
-  u.tDepth.value = refraction.depthTexture;
   const hidden = [];
   const reflection = mesh.onBeforeRender;
   const viewport = new THREE.Vector4();
@@ -211,12 +154,6 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
     try {
       objects.forEach(object => { object.visible = false; });
       renderer.xr.enabled = false; renderer.shadowMap.autoUpdate = false;
-      u.uNear.value = camera.near; u.uFar.value = camera.far;
-      u.uInverseViewProjection.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
-      renderer.setRenderTarget(refraction);
-      renderer.state.buffers.depth.setMask(true);
-      renderer.clear(); renderer.render(world, camera);
-      restoreTarget();
       mesh.visible = visibility[0];
       reflection.call(this, renderer, world, camera, ...rest);
     } finally {
@@ -248,7 +185,7 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
     u.uClarity.value = THREE.MathUtils.lerp(from.clarity, to.clarity, alpha);
   }
   return {
-    mesh, refraction,
+    mesh,
     sampleSurface(x, z, time) { return sampleWaterSurface(x, z, time, u.uWaves.value); },
     setInteraction(interaction) {
       const keys = ['uContactHull', 'uContactSize', 'uContactShape', 'uContactEnabled', 'uWakePoints', 'uWakeBounds', 'uWakeCount'];
@@ -275,12 +212,11 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
       if (disposed || width <= 0 || height <= 0) return;
       const scale = Math.min(quality === 'low' ? .4 : .6, (quality === 'low' ? 576 : 960) / Math.max(width, height));
       const w = Math.max(128, Math.round(width * scale)), h = Math.max(128, Math.round(height * scale));
-      refraction.setSize(w, h); u.uResolution.value.set(w, h);
       mesh.getRenderTarget().setSize(Math.max(128, Math.round(w * .75)), Math.max(128, Math.round(h * .75)));
     },
     dispose() {
       if (disposed) return; disposed = true;
-      mesh.removeFromParent(); mesh.geometry.dispose(); mesh.dispose(); refraction.dispose(); hidden.length = 0;
+      mesh.removeFromParent(); mesh.geometry.dispose(); mesh.dispose(); hidden.length = 0;
     },
   };
 }

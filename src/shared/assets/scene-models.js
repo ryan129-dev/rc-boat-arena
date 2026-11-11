@@ -1,10 +1,7 @@
 // Scene delivery variants keep the complete library models at their original URLs.
 // Only explicitly listed project models have a scene delivery variant.
 export const SCENE_MODEL_VARIANTS = Object.fromEntries([
-  'maverick-gt', 'riva-aquarama', 'motor-whaleboat', 'assault-boat',
-  'modular-wooden-pier', 'rock-09', 'rock-face-01',
-  'painted-wooden-bench', 'wooden-crate-02', 'lifebuoy', 'jacaranda-tree',
-  'old-tyre', 'wooden-bucket-01', 'lantern-01', 'shrub-03', 'shrub-sorrel-01', 'shrub-04',
+  'riva-aquarama',
 ].map(id => [`library/${id}/model.glb`, `runtime/${id}.glb`]));
 
 export function sceneModelUrl(url, base = document.baseURI) {

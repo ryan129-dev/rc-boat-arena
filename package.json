@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Sunny Cove — 单一海湾、可切换船艇的观赏巡游",
+  "description": "Sunny Cove — 桃花心木经典游艇与水天倒影",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5177",
     "build": "vite build",

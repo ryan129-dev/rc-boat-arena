@@ -26,6 +26,16 @@ try {
   check(BOATS.length === 1 && BOATS[0].id === 'riva-aquarama', 'the production roster contains only Riva');
   asset = await createSunnyCoveScene(options);
   asset.resize(640, 400); await asset.detailReady; render();
+  const sky = asset.environment.sky, originalSkyRender = sky.mesh.onBeforeRender, solarPasses = [];
+  sky.mesh.onBeforeRender = function (renderer, scene, camera, ...args) {
+    solarPasses.push({ main: camera === asset.camera, image: sky.material.uniforms.uSolarImage.value });
+    originalSkyRender.call(this, renderer, scene, camera, ...args);
+  };
+  render(); sky.mesh.onBeforeRender = originalSkyRender;
+  check(solarPasses.some(pass => !pass.main && pass.image === 0)
+    && solarPasses.some(pass => pass.main && pass.image === 1)
+    && sky.material.uniforms.uSolarImage.value === 1,
+  'reflection omits the duplicate solar image and restores the main-view sun');
   check(asset.snapshot().boatId === 'riva-aquarama' && visibleHulls() === 1, 'default is exactly one real Riva');
   check(typeof asset.setBoat === 'undefined' && !asset.dock, 'scene exposes no boat switching or dock');
   check(asset.snapshot().detailState.status === 'ready', 'the complete scene is ready without deferred scenery');

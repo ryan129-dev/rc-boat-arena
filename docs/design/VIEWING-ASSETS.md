@@ -118,7 +118,7 @@ function releaseCove() {
 
 `createCoveEnvironment(scene, { renderer, quality, mood })` 生成天空、雾和光照，无 GLB 或天空贴图下载。调用 `update()`、`setMood()` 与 `dispose()`，不拥有宿主 renderer。环境贴图按氛围惰性生成，结束时统一释放。
 
-`createCoveWater(scene, { quality, size })` 拥有反射纹理和波浪材质。调用 `update(time, boat)`、`resize(width, height)`、`setMood(preset)`、`setInteraction(interaction)` 和 `dispose()`。`sampleSurface(x, z, time)` 提供 CPU 水面高度与斜率，`setMood()` 支持 `waterClarity`、`waveStrength`。无需海床或折射纹理。
+`createCoveWater(scene, { quality, size, beforeReflection, afterReflection })` 拥有反射纹理和波浪材质。调用 `update(time, boat)`、`resize(width, height)`、`setMood(preset)`、`setInteraction(interaction)` 和 `dispose()`。`sampleSurface(x, z, time)` 提供 CPU 水面高度与斜率，`setMood()` 支持 `waterClarity`、`waveStrength`。无需海床或折射纹理。 可选的反射前后回调用于暂存和恢复组合状态；晴湾只在反射通道隐藏日轮及其近核光晕，水面使用自身波浪法线计算太阳碎光，避免出现两个完整日轮。反射结束或出错后恢复天空与渲染目标，不增加绘制通道。
 
 `createCoveBoat(scene, url, { signal, definition, length, draft })` 返回船体、实际尺寸及 `update()`/`dispose()`。默认 Riva 长度 2.4、吃水 .11，未覆盖吃水时随长度等比变化。模型 URL 必须与定义对应。
 

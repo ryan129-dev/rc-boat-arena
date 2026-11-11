@@ -8,14 +8,20 @@ function createSky() {
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: {
       uTime: { value: 0 }, uZenith: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
-      uSunColor: { value: new THREE.Color() }, uSunDirection: { value: new THREE.Vector3() },
-      uCloud: { value: 0.18 }, uGlow: { value: 0.3 }, uSize: { value: 0.008 }, uNight: { value: 0 },
+      uSolarImage: { value: 1 }, uSunColor: { value: new THREE.Color() }, uSunDirection: { value: new THREE.Vector3() },
+      uCloud: { value: 0.18 }, uGlow: { value: 0.3 }, uSize: { value: 0.00465 }, uNight: { value: 0 },
     },
     vertexShader: `varying vec3 vDirection;
-      void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      void main(){
+        // Sky directions are at infinity: moving either the main camera or the
+        // reflected camera cannot shift the sun away from the water's light.
+        vDirection=mat3(modelMatrix)*position;
+        vec4 clip=projectionMatrix*vec4(mat3(viewMatrix)*vDirection,1.);
+        gl_Position=clip.xyww;
+      }`,
     fragmentShader: `varying vec3 vDirection;
       uniform vec3 uZenith,uHorizon,uSunColor,uSunDirection;
-      uniform float uTime,uCloud,uGlow,uSize,uNight;
+      uniform float uTime,uCloud,uGlow,uSize,uNight,uSolarImage;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
         return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}
@@ -24,16 +30,30 @@ function createSky() {
         vec3 d=normalize(vDirection),sun=normalize(uSunDirection);
         float elevation=pow(max(d.y,0.),.34);
         vec3 color=mix(uHorizon,uZenith,elevation);
-        float facing=max(0.,dot(d,sun));
-        color+=uSunColor*pow(facing,26.)*uGlow;
-        color+=uSunColor*pow(facing,180.)*uGlow*.45;
-        float disk=1.-smoothstep(uSize*.8,uSize,length(d-sun));
-        color+=uSunColor*disk*mix(12.,1.7,uNight);
+        float facing=clamp(dot(d,sun),-1.,1.);
+        float angle=length(d-sun);
+        float daylight=1.-uNight;
+        // Normalized Henyey-Greenstein forward scattering: a circumsolar
+        // aureole, rather than a broad white overlay across the whole sky.
+        float g=.94;
+        float mie=pow((1.-g)*(1.-g)/max(1.+g*g-2.*g*facing,.00001),1.5);
+        color+=uSunColor*mie*uGlow*.65*daylight;
         vec2 cloudUV=d.xz/max(.16,d.y+.12)*1.4+vec2(uTime*.0013,0.);
         float n=fbm(cloudUV*vec2(.8,2.0));
         float cloud=smoothstep(.46,.69,n)*uCloud*smoothstep(.025,.23,d.y);
         vec3 cloudColor=mix(vec3(1.,.965,.9),uHorizon,.22+uNight*.4);
         color=mix(color,cloudColor,cloud);
+        // The small physical disk remains inside a smooth HDR glare profile.
+        // fwidth keeps its edge stable in the smaller reflection/lighting maps.
+        float aa=max(fwidth(angle)*.7,.00008);
+        float disk=1.-smoothstep(uSize-aa,uSize+aa,angle);
+        float limb=sqrt(max(0.,1.-min(1.,angle*angle/(uSize*uSize))));
+        float core=exp(-pow(angle/(uSize*2.5),2.));
+        float halo=exp(-angle/(uSize*7.));
+        float transmission=exp(-cloud*5.);
+        vec3 diskColor=mix(vec3(1.),uSunColor,.35);
+        color+=uSolarImage*transmission*(diskColor*disk*mix(24.*(.6+.4*limb),1.7,uNight)
+          +uSunColor*(core*4.+halo*.38)*uGlow*daylight);
         color=mix(uHorizon*.76,color,smoothstep(-.1,.04,d.y));
         gl_FragColor=vec4(color,1.);
         #include <tonemapping_fragment>
@@ -181,7 +201,6 @@ export async function createCoveEnvironment(scene, {
     setMood(initialMood, { immediate: true });
     signal?.addEventListener('abort', dispose, { once: true });
     return { group, sky, lights: { sun, hemisphere, ambient, frontFill }, warnings, update, setMood, dispose,
-
       get mood() { return mood; }, get preset() { return MOODS[mood]; } };
   } catch (error) { dispose(); throw error; }
 }

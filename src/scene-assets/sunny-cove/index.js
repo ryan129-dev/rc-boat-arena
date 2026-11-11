@@ -23,12 +23,22 @@ export async function createSunnyCoveScene({ renderer, assetBaseUrl, quality = '
   signal?.throwIfAborted();
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 1600);
-  const water = createCoveWater(scene, { quality });
+  let environment, boatVisual, interaction, boat, disposed = false, solarImage = 1;
+  const water = createCoveWater(scene, { quality,
+    // Reflect the atmospheric sky and hull, not a second flat solar disk. The
+    // water's normal-based glints supply the sun's reflection instead.
+    beforeReflection() {
+      const uniform = environment?.sky.material.uniforms.uSolarImage;
+      if (uniform) { solarImage = uniform.value; uniform.value = 0; }
+    },
+    afterReflection() {
+      if (environment) environment.sky.material.uniforms.uSolarImage.value = solarImage;
+    },
+  });
   const rig = createCoveCamera(camera, { ...tour.camera, reducedMotion });
   const state = { elapsed: 0, mood, boatId: DEFAULT_BOAT_ID,
     camera: reducedMotion && cameraMode === 'auto' ? 'scenic' : cameraMode };
   rig.setMode(state.camera);
-  let environment, boatVisual, interaction, boat, disposed = false;
   const loading = new AbortController();
   const abort = () => loading.abort(signal?.reason);
   signal?.addEventListener('abort', abort, { once: true });

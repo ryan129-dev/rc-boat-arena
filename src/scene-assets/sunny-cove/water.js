@@ -7,7 +7,7 @@ import { WAKE_CAPACITY } from '../boat-water-interaction/trail.js';
 /** Open water: one planar reflection of the sky and boat, with surface contact.
  * Owns one reflection target and its mesh; no seabed or refraction pass is needed.
  */
-export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {}) {
+export function createCoveWater(scene, { quality = 'balanced', size = 1400, beforeReflection, afterReflection } = {}) {
   const uniforms = {
     tDiffuse: { value: null }, color: { value: new THREE.Color() }, textureMatrix: { value: new THREE.Matrix4() },
     uTime: { value: 0 },
@@ -114,9 +114,9 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
           vec3 reflectionTint=mix(vec3(.91,.98,1.),vec3(.52,.72,.94),smoothstep(18.,150.,dist));
           vec3 col=mix(transmitted,reflected*reflectionTint,clamp(fresnel,.02,.97));
           vec3 halfDir=normalize(uSun+view);
-          float glint=pow(max(dot(normal,halfDir),0.),330.);
-          float broad=pow(max(dot(normal,halfDir),0.),48.);
-          col+=uSunColor*(glint*3.2+broad*.055)*uLight*(1.-contact.w*2.);
+          float glint=pow(max(dot(normal,halfDir),0.),1800.);
+          float broad=pow(max(dot(normal,halfDir),0.),128.);
+          col+=uSunColor*(glint*2.4+broad*.025)*uLight*(1.-contact.w*2.);
           col=mix(col,mix(uShallow,vec3(.46,.65,.60),.35)*(.42+.58*uLight),contact.w);
           col=mix(col,vec3(.69,.79,.73)*(.38+.62*uLight),contact.z);
           col*=1.-.12*exp(-hull*hull*1.4);
@@ -155,12 +155,18 @@ export function createCoveWater(scene, { quality = 'balanced', size = 1400 } = {
       objects.forEach(object => { object.visible = false; });
       renderer.xr.enabled = false; renderer.shadowMap.autoUpdate = false;
       mesh.visible = visibility[0];
+      // The composition can omit the sharp solar image from this planar pass;
+      // the surface normals below already generate its wave-broken highlights.
+      beforeReflection?.();
       reflection.call(this, renderer, world, camera, ...rest);
     } finally {
-      objects.forEach((object, i) => { object.visible = visibility[i]; });
-      renderer.xr.enabled = xr; renderer.shadowMap.autoUpdate = shadow;
-      restoreTarget();
-      rendering = false;
+      try { afterReflection?.(); }
+      finally {
+        objects.forEach((object, i) => { object.visible = visibility[i]; });
+        renderer.xr.enabled = xr; renderer.shadowMap.autoUpdate = shadow;
+        restoreTarget();
+        rendering = false;
+      }
     }
   };
   function palette(preset) {

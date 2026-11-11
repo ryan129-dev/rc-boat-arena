@@ -1,4 +1,6 @@
 // Complete sky, illumination and water palettes for the open coastal cove.
+// Solar angular radius: ~0.00465 rad (1919 arcsec diameter at 1 AU).
+// https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html
 export const MOODS = {
   afternoon: {
     name: 'afternoon', label: '晴湾午后', time: '15:36', weather: '晴朗 · 轻风',
@@ -8,18 +10,18 @@ export const MOODS = {
     moonDirection: [-0.34, 0.16, -0.93], hemisphere: '#b8d5e9', ground: '#566049',
     fillIntensity: 0.74, ambientIntensity: 0.025, environmentIntensity: 0.61,
     frontFillColor: '#dceaf1', frontFillIntensity: 1.28,
-    moon: 0, cloud: 0.18, sunSize: 0.008, sunGlow: 0.6,
+    moon: 0, cloud: 0.18, sunSize: 0.00465, sunGlow: 0.85,
     waterClarity: 0.8, waveStrength: 0.48,
   },
   sunset: {
     name: 'sunset', label: '落日金湾', time: '18:18', weather: '薄云 · 微风',
     zenith: '#7296bb', horizon: '#edbd95', fogColor: '#d6b5a0', fogDensity: 0.0034,
     waterColor: '#467f86', shallowColor: '#91b8a0', deepColor: '#284e67',
-    exposure: 1.02, lightColor: '#ffc98c', lightIntensity: 3.15,
-    moonDirection: [-0.48, 0.09, -0.85], hemisphere: '#bfd1e0', ground: '#806b53',
+    exposure: 1.02, lightColor: '#ffb978', lightIntensity: 3.15,
+    moonDirection: [-0.48, 0.026, -0.85], hemisphere: '#bfd1e0', ground: '#806b53',
     fillIntensity: 0.65, ambientIntensity: 0.035, environmentIntensity: 0.58,
     frontFillColor: '#e9dace', frontFillIntensity: 0.74,
-    moon: 0, cloud: 0.24, sunSize: 0.009, sunGlow: 0.8,
+    moon: 0, cloud: 0.24, sunSize: 0.00465, sunGlow: 0.72,
     waterClarity: 0.73, waveStrength: 0.4,
   },
   bluehour: {
